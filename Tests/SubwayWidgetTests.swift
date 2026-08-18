@@ -400,3 +400,68 @@ final class UpcomingTrainTests: XCTestCase {
         return calendar.date(from: components)!
     }
 }
+
+final class WidgetNameFitTests: XCTestCase {
+    func testShortNamesStayOneLine() {
+        XCTAssertEqual(lines("笹塚・橋本"), ["笹塚・橋本"])
+        XCTAssertEqual("笹塚・橋本".count, 5)
+    }
+
+    func testYoyogiWrapsAtNakaguroIncludingCatalogKe() {
+        XCTAssertEqual(lines("代々木上原・向ヶ丘遊園"), ["代々木上原", "向ヶ丘遊園"])
+        XCTAssertEqual("代々木上原・向ヶ丘遊園".count, 11)
+
+        let catalog = ToeiCatalog.station(line: .chiyoda, code: "C07")?.directionLabel("S")
+        XCTAssertEqual(catalog, "代々木上原・向ケ丘遊園方面")
+        let withoutHomen = String(catalog!.dropLast(2))
+        XCTAssertEqual(withoutHomen, "代々木上原・向ケ丘遊園")
+        XCTAssertEqual(lines(withoutHomen), ["代々木上原", "向ケ丘遊園"])
+    }
+
+    func testHanedaWrapsToThreeLines() {
+        let name = "羽田空港第１・第２ターミナル・西馬込"
+        XCTAssertEqual(name.count, 18)
+        XCTAssertEqual(lines(name), ["羽田空港第１", "第２ターミナル", "西馬込"])
+        XCTAssertEqual(
+            ToeiCatalog.station(line: .asakusa, code: "A08")?.directionLabel("S"),
+            "羽田空港第１・第２ターミナル・西馬込方面"
+        )
+    }
+
+    func testFourNakaguroPartsDoNotDumpOntoLineThree() {
+        let name = "第１ターミナル・第２ターミナル・第３ターミナル・西馬込"
+        XCTAssertEqual(lines(name), ["第１ターミナル", "第２ターミナル", "第３ターミナル・西馬込"])
+        XCTAssertEqual(WidgetNameFit.layout(name, smallWidget: true).lineCount, 3)
+    }
+
+    func testLongNameWithoutNakaguroChunksByEight() {
+        let name = "国会議事堂前交差点"
+        XCTAssertEqual(name.count, 9)
+        XCTAssertEqual(lines(name), ["国会議事堂前交差", "点"])
+    }
+
+    func testDestinationUsesFewerLinesWhenHeaderIsAlreadyThree() {
+        XCTAssertEqual(WidgetNameFit.destinationMaxLines(headerLineCount: 1), 3)
+        XCTAssertEqual(WidgetNameFit.destinationMaxLines(headerLineCount: 2), 2)
+        XCTAssertEqual(WidgetNameFit.destinationMaxLines(headerLineCount: 3), 1)
+
+        let name = "羽田空港第１・第２ターミナル・西馬込"
+        let dest = WidgetNameFit.layout(name, smallWidget: true, maxLines: 1)
+        XCTAssertEqual(dest.lineCount, 1)
+        XCTAssertEqual(dest.text, name)
+        XCTAssertEqual(WidgetNameFit.fontSize(layout: dest, base: 14, smallWidget: true), 11)
+    }
+
+    func testMediumWidgetDoesNotInsertBreaks() {
+        let name = "羽田空港第１・第２ターミナル・西馬込"
+        XCTAssertEqual(WidgetNameFit.layout(name, smallWidget: false).text, name)
+        XCTAssertEqual(
+            WidgetNameFit.fontSize(layout: WidgetNameFit.layout(name, smallWidget: false), base: 18, smallWidget: false),
+            15
+        )
+    }
+
+    private func lines(_ text: String) -> [String] {
+        WidgetNameFit.layout(text, smallWidget: true).lines
+    }
+}

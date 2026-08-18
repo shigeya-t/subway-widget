@@ -101,15 +101,29 @@ struct SubwayWidgetEntryView: View {
 
     private static let footnoteFont = Font.system(size: 9)
 
+    private var isSmall: Bool { family == .systemSmall }
+
+    /// 方面が3行になると、同じ行き先を次発でも3行にするとフッターが欠ける。
+    private var headerDirectionLayout: WidgetNameFit.Layout {
+        WidgetNameFit.layout(headerDirection ?? "", smallWidget: isSmall)
+    }
+
+    private var smallCrowded: Bool {
+        isSmall && headerDirectionLayout.lineCount >= 3
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: family == .systemSmall ? 5 : 8) {
+        VStack(alignment: .leading, spacing: isSmall ? (smallCrowded ? 4 : 5) : 8) {
             header
             nextTrain
-            Spacer(minLength: 0)
+            if !isSmall {
+                Spacer(minLength: 0)
+            }
             followingLine
             statusLine
         }
-        .padding(family == .systemSmall ? 10 : 12)
+        .padding(.horizontal, isSmall ? 10 : 12)
+        .padding(.vertical, smallCrowded ? 8 : 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -121,42 +135,46 @@ struct SubwayWidgetEntryView: View {
                     .frame(width: 4)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.line?.displayName ?? "東京地下鉄")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text(entry.stationName ?? "駅を選択")
-                    .font(family == .systemSmall ? .caption.bold() : .subheadline.bold())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if let direction = headerDirection {
-                    Text(direction)
-                        .font(.system(size: family == .systemSmall ? 13 : 15, weight: .regular, design: .rounded))
+                HStack(alignment: .top, spacing: 6) {
+                    Text(entry.line?.displayName ?? "東京地下鉄")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    if entry.key != nil {
+                        headerButtons
+                    }
+                }
+                Text(entry.stationName ?? "駅を選択")
+                    .font(.system(size: isSmall ? 15 : 17, weight: .bold))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let direction = headerDirection {
+                    fittingName(direction, baseSize: isSmall ? 13 : 15)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if entry.key != nil {
-                HStack(spacing: 8) {
-                    Button(intent: TogglePauseIntent()) {
-                        Image(systemName: entry.isPaused ? "play.fill" : "pause.fill")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(entry.isPaused ? .orange : .secondary)
-
-                    Button(intent: RefreshTrainIntent(selectionID: entry.key?.id)) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-            }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerButtons: some View {
+        HStack(spacing: 8) {
+            Button(intent: TogglePauseIntent()) {
+                Image(systemName: entry.isPaused ? "play.fill" : "pause.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(entry.isPaused ? .orange : .secondary)
+
+            Button(intent: RefreshTrainIntent(selectionID: entry.key?.id)) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -172,23 +190,23 @@ struct SubwayWidgetEntryView: View {
                 .foregroundStyle(.orange)
         } else if let next = entry.next {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: family == .systemSmall ? 5 : 8) {
+                HStack(alignment: .firstTextBaseline, spacing: isSmall ? 5 : 8) {
                     // Date.FormatStyle は日本語ロケールで「22時42分」になり、小サイズで 22… に省略される。
                     Text(next.departure.timeText)
-                        .font(.system(size: family == .systemSmall ? 20 : 34, weight: .semibold, design: .rounded))
+                        .font(.system(size: isSmall ? 20 : 34, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .fixedSize(horizontal: true, vertical: false)
                     remainingText(until: next.date, isNextDay: entry.upcoming?.isNextDay == true)
                 }
-                Text(next.departure.destination)
-                    .font(.system(size: family == .systemSmall ? 14 : 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if entry.upcoming?.isNextDay == true {
+                fittingName(
+                    next.departure.destination,
+                    baseSize: isSmall ? 14 : 18,
+                    weight: .medium,
+                    maxLines: WidgetNameFit.destinationMaxLines(headerLineCount: headerDirectionLayout.lineCount)
+                )
+                if !isSmall, entry.upcoming?.isNextDay == true {
                     Text("終電済 · \(ToeiConfig.scheduleHeading(kind: entry.upcoming!.kind, isNextDay: true))")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -210,13 +228,35 @@ struct SubwayWidgetEntryView: View {
         return raw
     }
 
+    /// 短い名前は既定サイズのまま。小ウィジェットで長い「A・B・C」は中黒で改行する。
+    /// `lineLimit` だけの折り返しは幅が渡らず省略になるので、改行は `WidgetNameFit` で入れる。
+    private func fittingName(
+        _ text: String,
+        baseSize: CGFloat,
+        weight: Font.Weight = .regular,
+        maxLines: Int = WidgetNameFit.smallMaxLines
+    ) -> some View {
+        let layout = WidgetNameFit.layout(text, smallWidget: isSmall, maxLines: maxLines)
+        let size = WidgetNameFit.fontSize(layout: layout, base: baseSize, smallWidget: isSmall)
+        let lines = layout.lineCount
+        return Text(layout.text)
+            .font(.system(size: size, weight: weight, design: .rounded))
+            .foregroundStyle(.secondary)
+            .lineLimit(lines)
+            .lineSpacing(lines >= 3 ? -1 : 0)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, lines >= 3 ? 2 : 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func remainingText(until date: Date, isNextDay: Bool) -> some View {
         let minutes = TrainSnapshot.remainingMinutes(until: date, now: entry.date)
         let label = isNextDay
             ? "始発"
             : TrainSnapshot.remainingLabel(minutes: minutes, compact: family == .systemSmall)
         return Text(label)
-            .font(.system(size: family == .systemSmall ? 12 : 16, weight: .semibold, design: .rounded))
+            .font(.system(size: isSmall ? 12 : 16, weight: .semibold, design: .rounded))
             .foregroundStyle(!isNextDay && minutes <= 1 ? Color.green : Color.secondary)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
@@ -224,7 +264,7 @@ struct SubwayWidgetEntryView: View {
 
     @ViewBuilder
     private var followingLine: some View {
-        let count = family == .systemSmall ? 2 : 3
+        let count = isSmall ? 2 : 3
         let shown = Array(entry.following.prefix(count))
         if !shown.isEmpty {
             HStack(spacing: 8) {
