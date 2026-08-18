@@ -1,9 +1,9 @@
 import Foundation
 import os
 
-let toeiLogger = Logger(
+let subwayLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "jp.shigeya.SubwayWidget",
-    category: "ToeiData"
+    category: "Data"
 )
 
 enum ToeiAPIError: LocalizedError {
@@ -20,7 +20,8 @@ enum ToeiAPIError: LocalizedError {
     }
 }
 
-/// Yahoo!路線情報の公開HTML。 Imperva のないこちらのページなら `URLSession` で取れる。
+/// Yahoo!路線情報の公開 HTML。 Imperva のないこちらのページなら `URLSession` で取れる。
+/// 型名の Toei は当初都営専用だった名残で、メトロも同じ経路で取る。
 enum ToeiAPI {
     static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15"
 
@@ -52,7 +53,7 @@ enum ToeiAPI {
     }
 
     static func fetchHTML(_ url: URL) async throws -> String {
-        toeiLogger.debug("GET \(url.absoluteString, privacy: .public)")
+        subwayLogger.debug("GET \(url.absoluteString, privacy: .public)")
         var request = URLRequest(url: url)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")

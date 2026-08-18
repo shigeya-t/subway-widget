@@ -1,6 +1,7 @@
 import Foundation
 import SwiftSoup
 
+/// Yahoo!路線情報の時刻表・運行状況 HTML。型名の Toei は当初都営専用だった名残。
 enum ToeiPageParser {
     /// Yahoo!路線情報の駅時刻表から1枚の表を取り出す。
     static func parseTimetable(_ html: String, kind: ScheduleKind) throws -> TimetableTable {
@@ -21,7 +22,7 @@ enum ToeiPageParser {
         )
     }
 
-    /// 関東の運行情報ページから都営4路線を取る。
+    /// 関東の運行情報ページから都営・東京メトロ各路線を取る。
     static func parseStatuses(_ html: String, observedAt: Date = Date()) -> [LineID: LineStatus] {
         var result: [LineID: LineStatus] = [:]
         for line in LineID.allCases {
@@ -189,6 +190,7 @@ enum ToeiPageParser {
         }
         let cleaned = compact
             .replacingOccurrences(of: "都営\(line.displayName)", with: "")
+            .replacingOccurrences(of: "東京メトロ\(line.displayName)", with: "")
             .replacingOccurrences(of: line.displayName, with: "")
         let summary = cleaned.isEmpty ? "遅延情報があります" : String(cleaned.prefix(40))
         return LineStatus(line: line, kind: .delayed, text: summary, observedAt: observedAt)

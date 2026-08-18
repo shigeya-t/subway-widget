@@ -69,6 +69,20 @@ run_xcodebuild() {
 }
 
 built_app_path() {
-  find ~/Library/Developer/Xcode/DerivedData -maxdepth 1 -iname "SubwayWidget-*" \
-    -exec find {}/Build/Products/Debug -maxdepth 1 -name "$APP_NAME" \; 2>/dev/null | head -1
+  local dir
+  dir=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showBuildSettings 2>/dev/null \
+    | sed -n 's/^[[:space:]]*TARGET_BUILD_DIR = //p' | head -1)
+  [[ -n "$dir" && -d "$dir/$APP_NAME" ]] && echo "$dir/$APP_NAME"
+}
+
+# DerivedData は触らず、完成した .app をリポジトリの build/ にも置く。
+# CONFIGURATION_BUILD_DIR を上書きすると SwiftSoup の解決が壊れる。
+copy_app_to_repo_build() {
+  local src="$1"
+  local dest="$REPO_ROOT/build/$APP_NAME"
+  [[ -d "$src" ]] || die "コピー元がありません: $src"
+  mkdir -p "$REPO_ROOT/build"
+  rm -rf "$dest"
+  ditto "$src" "$dest"
+  echo "    $dest"
 }

@@ -45,7 +45,7 @@ struct Provider: AppIntentTimelineProvider {
 
         let dates = TrainSnapshot.widgetTimelineDates(now: now, departures: departures)
         let entries = dates.map { buildEntry(configuration: configuration, now: $0) }
-        toeiLogger.debug("timeline entries=\(entries.count, privacy: .public)")
+        subwayLogger.debug("timeline entries=\(entries.count, privacy: .public)")
         let lastDate = entries.last?.date ?? now
         return Timeline(entries: entries, policy: .after(lastDate.addingTimeInterval(30)))
     }
@@ -121,7 +121,7 @@ struct SubwayWidgetEntryView: View {
                     .frame(width: 4)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.line?.displayName ?? "都営地下鉄")
+                Text(entry.line?.displayName ?? "東京地下鉄")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -131,10 +131,11 @@ struct SubwayWidgetEntryView: View {
                     .minimumScaleFactor(0.8)
                 if let direction = headerDirection {
                     Text(direction)
-                        .font(.caption2)
+                        .font(.system(size: family == .systemSmall ? 13 : 15, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,10 +183,11 @@ struct SubwayWidgetEntryView: View {
                     remainingText(until: next.date, isNextDay: entry.upcoming?.isNextDay == true)
                 }
                 Text(next.departure.destination)
-                    .font(.caption)
+                    .font(.system(size: family == .systemSmall ? 14 : 18, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.55)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if entry.upcoming?.isNextDay == true {
                     Text("終電済 · \(ToeiConfig.scheduleHeading(kind: entry.upcoming!.kind, isNextDay: true))")
                         .font(.caption2)
@@ -270,7 +272,7 @@ struct SubwayWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("東京地下鉄運行情報")
-        .description("選んだ駅・方面の次発時刻と運行状況を、Yahoo!路線情報から表示します。")
+        .description("選んだ駅・方面の次発時刻と運行状況を、Yahoo!路線情報から表示します。都営地下鉄と東京メトロに対応しています。")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

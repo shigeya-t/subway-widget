@@ -20,15 +20,16 @@ struct SubwayWidgetApp: App {
 final class ArrivalModel: ObservableObject {
     private static let refreshInterval: TimeInterval = 60
 
+    @Published var selectedOperator: RailwayOperator {
+        didSet {
+            guard selectedOperator != oldValue else { return }
+            selectedLine = WidgetEntityMatch.defaultLineIfNeeded(selectedLine, operator: selectedOperator)
+        }
+    }
     @Published var selectedLine: LineID {
         didSet {
             guard selectedLine != oldValue else { return }
-            let stations = ToeiCatalog.stations(on: selectedLine)
-            if let current = selectedStation, current.line == selectedLine {
-                // keep
-            } else {
-                selectedStation = stations.first
-            }
+            selectedStation = WidgetEntityMatch.defaultStationIfNeeded(selectedStation, line: selectedLine)
         }
     }
     @Published var selectedStation: Station? {
@@ -77,11 +78,12 @@ final class ArrivalModel: ObservableObject {
     init() {
         let saved = AppSettings.selectedKey ?? .default
         let station = ToeiCatalog.station(line: saved.line, code: saved.stationCode)
-            ?? ToeiCatalog.station(line: .oedo, code: "E17")
-            ?? ToeiCatalog.stations(on: .oedo)[0]
+            ?? ToeiCatalog.station(line: SelectionKey.default.line, code: SelectionKey.default.stationCode)
+            ?? ToeiCatalog.stations(on: SelectionKey.default.line)[0]
+        selectedOperator = station.line.railwayOperator
         selectedLine = station.line
         selectedStation = station
-        selectedDirection = station.directions.contains(saved.direction) ? saved.direction : (station.directions.first ?? "B")
+        selectedDirection = station.directions.contains(saved.direction) ? saved.direction : (station.directions.first ?? SelectionKey.default.direction)
         isPaused = AppSettings.isPaused
         if !AppSettings.isUsingAppGroup {
             errorText = "Team ID が空です。ターミナルで ./scripts/sync-team.sh を実行してから、Xcode でビルドし直してください"
@@ -106,7 +108,7 @@ final class ArrivalModel: ObservableObject {
     private func syncDirectionToStation() {
         guard let station = selectedStation else { return }
         if !station.directions.contains(selectedDirection) {
-            selectedDirection = station.directions.first ?? "B"
+            selectedDirection = station.directions.first ?? SelectionKey.default.direction
         }
     }
 
@@ -119,7 +121,7 @@ final class ArrivalModel: ObservableObject {
 
     private func observePauseChangesFromWidget() {
         DistributedNotificationCenter.default().addObserver(
-            forName: .toeiPauseStateChanged,
+            forName: .pauseStateChanged,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -129,7 +131,7 @@ final class ArrivalModel: ObservableObject {
 
     private func observeManualRefreshRequestsFromWidget() {
         DistributedNotificationCenter.default().addObserver(
-            forName: .toeiManualRefreshRequested,
+            forName: .manualRefreshRequested,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -182,7 +184,7 @@ final class ArrivalModel: ObservableObject {
             try await refreshStatuses(force: force)
         } catch {
             guard !Self.isCancellation(error) else { return }
-            toeiLogger.error("運行状況の取得に失敗: \(String(describing: error), privacy: .public)")
+            subwayLogger.error("運行状況の取得に失敗: \(String(describing: error), privacy: .public)")
         }
         guard generation == selectionGeneration else { return }
         do {
@@ -192,7 +194,7 @@ final class ArrivalModel: ObservableObject {
             guard generation == selectionGeneration else { return }
             if !Self.isCancellation(error) {
                 errorText = error.localizedDescription
-                toeiLogger.error("refresh failed: \(String(describing: error), privacy: .public)")
+                subwayLogger.error("refresh failed: \(String(describing: error), privacy: .public)")
             }
         }
         guard generation == selectionGeneration else { return }
@@ -215,7 +217,7 @@ final class ArrivalModel: ObservableObject {
         let timetable = try await TrainScheduleService.fetchTimetable(for: key, force: force)
         AppSettings.saveSchedule(timetable, selectionID: key.id)
         upcoming = TrainTime.upcoming(from: timetable, now: Date(), holidays: holidays, limit: 4)
-        toeiLogger.debug("saved timetable for \(key.id, privacy: .public) trains=\(timetable.weekday?.trains.count ?? 0, privacy: .public)")
+        subwayLogger.debug("saved timetable for \(key.id, privacy: .public) trains=\(timetable.weekday?.trains.count ?? 0, privacy: .public)")
     }
 
     private func refreshWidgetSelections(force: Bool, holidays: Set<String>, excluding excludedID: String?) async {
@@ -228,7 +230,7 @@ final class ArrivalModel: ObservableObject {
                 keys.append(key)
             }
         }
-        toeiLogger.debug("widget-only keys to refresh: \(keys.map(\.id), privacy: .public)")
+        subwayLogger.debug("widget-only keys to refresh: \(keys.map(\.id), privacy: .public)")
         await withTaskGroup(of: Void.self) { group in
             for key in keys {
                 group.addTask {
@@ -236,7 +238,7 @@ final class ArrivalModel: ObservableObject {
                         let timetable = try await TrainScheduleService.fetchTimetable(for: key, force: force)
                         AppSettings.saveSchedule(timetable, selectionID: key.id)
                     } catch {
-                        toeiLogger.error("\(key.id, privacy: .public) の時刻表取得に失敗: \(String(describing: error), privacy: .public)")
+                        subwayLogger.error("\(key.id, privacy: .public) の時刻表取得に失敗: \(String(describing: error), privacy: .public)")
                     }
                 }
             }
@@ -250,15 +252,15 @@ final class ArrivalModel: ObservableObject {
                 WidgetCenter.shared.getCurrentConfigurations { continuation.resume(with: $0) }
             }
         } catch {
-            toeiLogger.error("getCurrentConfigurations に失敗: \(String(describing: error), privacy: .public)")
+            subwayLogger.error("getCurrentConfigurations に失敗: \(String(describing: error), privacy: .public)")
             return []
         }
-        toeiLogger.debug("getCurrentConfigurations: \(infos.count, privacy: .public) 件")
+        subwayLogger.debug("getCurrentConfigurations: \(infos.count, privacy: .public) 件")
         var seen = Set<String>()
         var keys: [SelectionKey] = []
         for info in infos {
             guard let intent = info.widgetConfigurationIntent(of: SelectStationIntent.self) else {
-                toeiLogger.error("widgetConfigurationIntent(of:) が nil")
+                subwayLogger.error("widgetConfigurationIntent(of:) が nil")
                 continue
             }
             guard let key = intent.resolvedKey else { continue }
@@ -297,6 +299,9 @@ struct MenuContent: View {
                 filterFocused = true
             }
         }
+        .onChange(of: model.selectedOperator) { _, _ in
+            model.stationFilter = ""
+        }
         .onChange(of: model.selectedLine) { _, _ in
             model.stationFilter = ""
         }
@@ -304,9 +309,17 @@ struct MenuContent: View {
 
     private var pickers: some View {
         VStack(alignment: .leading, spacing: 8) {
+            labeled("事業者") {
+                Picker("", selection: $model.selectedOperator) {
+                    ForEach(RailwayOperator.allCases) { railwayOperator in
+                        Text(railwayOperator.displayName).tag(railwayOperator)
+                    }
+                }
+                .labelsHidden()
+            }
             labeled("路線") {
                 Picker("", selection: $model.selectedLine) {
-                    ForEach(LineID.allCases) { line in
+                    ForEach(LineID.lines(of: model.selectedOperator)) { line in
                         Text(line.displayName).tag(line)
                     }
                 }

@@ -1,12 +1,47 @@
 import Foundation
 
+enum RailwayOperator: String, CaseIterable, Codable, Sendable, Identifiable {
+    case toei
+    case metro
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .toei: return "都営地下鉄"
+        case .metro: return "東京メトロ"
+        }
+    }
+}
+
 enum LineID: String, CaseIterable, Codable, Sendable, Identifiable {
     case asakusa
     case mita
     case shinjuku
     case oedo
+    case ginza
+    case marunouchi
+    case hibiya
+    case tozai
+    case chiyoda
+    case yurakucho
+    case hanzomon
+    case namboku
+    case fukutoshin
 
     var id: String { rawValue }
+
+    var railwayOperator: RailwayOperator {
+        switch self {
+        case .asakusa, .mita, .shinjuku, .oedo: return .toei
+        case .ginza, .marunouchi, .hibiya, .tozai, .chiyoda, .yurakucho, .hanzomon, .namboku, .fukutoshin:
+            return .metro
+        }
+    }
+
+    static func lines(of railwayOperator: RailwayOperator) -> [LineID] {
+        allCases.filter { $0.railwayOperator == railwayOperator }
+    }
 
     var displayName: String {
         switch self {
@@ -14,16 +49,34 @@ enum LineID: String, CaseIterable, Codable, Sendable, Identifiable {
         case .mita: return "三田線"
         case .shinjuku: return "新宿線"
         case .oedo: return "大江戸線"
+        case .ginza: return "銀座線"
+        case .marunouchi: return "丸ノ内線"
+        case .hibiya: return "日比谷線"
+        case .tozai: return "東西線"
+        case .chiyoda: return "千代田線"
+        case .yurakucho: return "有楽町線"
+        case .hanzomon: return "半蔵門線"
+        case .namboku: return "南北線"
+        case .fukutoshin: return "副都心線"
         }
     }
 
-    /// 交通局の路線色。
+    /// 事業者の路線色。
     var colorHex: String {
         switch self {
         case .asakusa: return "EC6E65"
         case .mita: return "0079C2"
         case .shinjuku: return "B0C124"
         case .oedo: return "B6007A"
+        case .ginza: return "FF9500"
+        case .marunouchi: return "F62E36"
+        case .hibiya: return "B5B5AC"
+        case .tozai: return "009BBF"
+        case .chiyoda: return "00BB85"
+        case .yurakucho: return "C1A470"
+        case .hanzomon: return "8F76D6"
+        case .namboku: return "00AC9B"
+        case .fukutoshin: return "9C5E31"
         }
     }
 
@@ -34,14 +87,28 @@ enum LineID: String, CaseIterable, Codable, Sendable, Identifiable {
         case .mita: return 129
         case .shinjuku: return 130
         case .oedo: return 131
+        case .ginza: return 132
+        case .marunouchi: return 133
+        case .hibiya: return 134
+        case .tozai: return 135
+        case .chiyoda: return 136
+        case .yurakucho: return 137
+        case .hanzomon: return 138
+        case .namboku: return 139
+        case .fukutoshin: return 540
         }
     }
 
     var directionCodes: [String] {
         switch self {
-        case .asakusa, .mita: return ["N", "S"]
-        case .shinjuku: return ["E", "W"]
-        case .oedo: return ["A", "B", "C"]
+        case .asakusa, .mita, .ginza, .hibiya, .chiyoda, .hanzomon, .namboku, .fukutoshin:
+            return ["N", "S"]
+        case .shinjuku, .tozai, .yurakucho:
+            return ["E", "W"]
+        case .marunouchi:
+            return ["E", "W", "B"]
+        case .oedo:
+            return ["A", "B", "C"]
         }
     }
 
@@ -56,6 +123,25 @@ enum LineID: String, CaseIterable, Codable, Sendable, Identifiable {
         case (.oedo, "A"): return "A方面"
         case (.oedo, "B"): return "B方面"
         case (.oedo, "C"): return "光が丘方面"
+        case (.ginza, "N"): return "浅草方面"
+        case (.ginza, "S"): return "渋谷方面"
+        case (.marunouchi, "E"): return "池袋方面"
+        case (.marunouchi, "W"): return "荻窪方面"
+        case (.marunouchi, "B"): return "方南町方面"
+        case (.hibiya, "N"): return "北千住方面"
+        case (.hibiya, "S"): return "中目黒方面"
+        case (.tozai, "E"): return "西船橋方面"
+        case (.tozai, "W"): return "中野方面"
+        case (.chiyoda, "N"): return "綾瀬方面"
+        case (.chiyoda, "S"): return "代々木上原方面"
+        case (.yurakucho, "E"): return "新木場方面"
+        case (.yurakucho, "W"): return "和光市方面"
+        case (.hanzomon, "N"): return "押上方面"
+        case (.hanzomon, "S"): return "渋谷方面"
+        case (.namboku, "N"): return "赤羽岩淵方面"
+        case (.namboku, "S"): return "目黒方面"
+        case (.fukutoshin, "N"): return "和光市方面"
+        case (.fukutoshin, "S"): return "渋谷方面"
         default: return "\(code)方面"
         }
     }
@@ -69,7 +155,7 @@ struct SelectionKey: Hashable, Codable, Sendable, Identifiable {
 
     var id: String { "\(line.rawValue):\(stationCode):\(direction)" }
 
-    static let `default` = SelectionKey(line: .oedo, stationCode: "E17", direction: "B")
+    static let `default` = SelectionKey(line: .marunouchi, stationCode: "M17", direction: "E")
 }
 
 struct Station: Hashable, Codable, Sendable, Identifiable {
@@ -83,9 +169,12 @@ struct Station: Hashable, Codable, Sendable, Identifiable {
 
     var id: String { "\(line.rawValue):\(code)" }
 
-    /// 駅ナンバリング（`E-17`）。
+    /// 駅ナンバリング（`E-17`, `m-04`）。
     var numbering: String {
-        "\(code.prefix(1))-\(code.dropFirst())"
+        if let index = code.firstIndex(where: { $0.isNumber }) {
+            return "\(code[..<index])-\(code[index...])"
+        }
+        return code
     }
 
     func directionLabel(_ code: String) -> String {
@@ -100,6 +189,7 @@ struct Station: Hashable, Codable, Sendable, Identifiable {
     }
 }
 
+/// 都営4路線と東京メトロ9路線の駅カタログ。型名の Toei は当初都営専用だった名残。
 enum ToeiCatalog {
     static let stations: [Station] = {
         var result: [Station] = []
@@ -107,6 +197,15 @@ enum ToeiCatalog {
         result += make(.mita, mitaRows)
         result += make(.shinjuku, shinjukuRows)
         result += make(.oedo, oedoRows)
+        result += make(.ginza, MetroCatalog.ginzaRows)
+        result += make(.marunouchi, MetroCatalog.marunouchiRows)
+        result += make(.hibiya, MetroCatalog.hibiyaRows)
+        result += make(.tozai, MetroCatalog.tozaiRows)
+        result += make(.chiyoda, MetroCatalog.chiyodaRows)
+        result += make(.yurakucho, MetroCatalog.yurakuchoRows)
+        result += make(.hanzomon, MetroCatalog.hanzomonRows)
+        result += make(.namboku, MetroCatalog.nambokuRows)
+        result += make(.fukutoshin, MetroCatalog.fukutoshinRows)
         return result
     }()
 

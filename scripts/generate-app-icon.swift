@@ -10,10 +10,11 @@ let destinations: [URL] = {
     }
     return [
         URL(fileURLWithPath: "App/Assets.xcassets/AppIcon.appiconset"),
+        URL(fileURLWithPath: "WidgetExtension/Assets.xcassets/AppIcon.appiconset"),
     ]
 }()
 
-let sizes: [(name: String, pixels: Int)] = [
+let macSizes: [(name: String, pixels: Int)] = [
     ("icon_16x16.png", 16),
     ("icon_16x16@2x.png", 32),
     ("icon_32x32.png", 32),
@@ -24,6 +25,18 @@ let sizes: [(name: String, pixels: Int)] = [
     ("icon_256x256@2x.png", 512),
     ("icon_512x512.png", 512),
     ("icon_512x512@2x.png", 1024),
+]
+
+/// ウィジェット編集・設定は iOS 由来で、60pt / 76pt を Assets.car からも探す。
+let catalogIOSSizes: [(name: String, pixels: Int)] = [
+    ("AppIcon60x60@2x.png", 120),
+    ("AppIcon60x60@3x.png", 180),
+    ("AppIcon76x76@2x.png", 152),
+]
+
+/// ファイル名参照 (CFBundleIconFiles) 用。`~ipad` はカタログには載せない（unassigned child になる）。
+let resourceIOSSizes: [(name: String, pixels: Int)] = catalogIOSSizes + [
+    ("AppIcon76x76@2x~ipad.png", 152),
 ]
 
 let background = NSColor(srgbRed: 0xB6 / 255, green: 0x00 / 255, blue: 0x7A / 255, alpha: 1) // 大江戸
@@ -73,75 +86,51 @@ func drawTram(in ctx: CGContext, size: CGFloat) {
     ctx.restoreGState()
 }
 
+let contentsJSON = """
+{
+  "images" : [
+    { "filename" : "icon_16x16.png", "idiom" : "mac", "scale" : "1x", "size" : "16x16" },
+    { "filename" : "icon_16x16@2x.png", "idiom" : "mac", "scale" : "2x", "size" : "16x16" },
+    { "filename" : "icon_32x32.png", "idiom" : "mac", "scale" : "1x", "size" : "32x32" },
+    { "filename" : "icon_32x32@2x.png", "idiom" : "mac", "scale" : "2x", "size" : "32x32" },
+    { "filename" : "icon_128x128.png", "idiom" : "mac", "scale" : "1x", "size" : "128x128" },
+    { "filename" : "icon_128x128@2x.png", "idiom" : "mac", "scale" : "2x", "size" : "128x128" },
+    { "filename" : "icon_256x256.png", "idiom" : "mac", "scale" : "1x", "size" : "256x256" },
+    { "filename" : "icon_256x256@2x.png", "idiom" : "mac", "scale" : "2x", "size" : "256x256" },
+    { "filename" : "icon_512x512.png", "idiom" : "mac", "scale" : "1x", "size" : "512x512" },
+    { "filename" : "icon_512x512@2x.png", "idiom" : "mac", "scale" : "2x", "size" : "512x512" },
+    { "filename" : "AppIcon60x60@2x.png", "idiom" : "iphone", "scale" : "2x", "size" : "60x60" },
+    { "filename" : "AppIcon60x60@3x.png", "idiom" : "iphone", "scale" : "3x", "size" : "60x60" },
+    { "filename" : "AppIcon76x76@2x.png", "idiom" : "ipad", "scale" : "2x", "size" : "76x76" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
+"""
+
 for dest in destinations {
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    for item in sizes {
+    for item in macSizes + catalogIOSSizes {
         let url = dest.appendingPathComponent(item.name)
         try render(pixels: item.pixels).write(to: url)
         print("wrote \(url.path) (\(item.pixels)px)")
     }
-    let contents = dest.appendingPathComponent("Contents.json")
-    if !FileManager.default.fileExists(atPath: contents.path) {
-        try? FileManager.default.copyItem(
-            at: URL(fileURLWithPath: "App/Assets.xcassets/AppIcon.appiconset/Contents.json"),
-            to: contents
-        )
-    }
+    try contentsJSON.write(
+        to: dest.appendingPathComponent("Contents.json"),
+        atomically: true,
+        encoding: .utf8
+    )
 }
 
-let imageSets = [
-    "App/Assets.xcassets/ToeiIcon.imageset",
-    "WidgetExtension/Assets.xcassets/ToeiIcon.imageset",
-]
-let master = destinations[0]
-for path in imageSets {
-    let dir = URL(fileURLWithPath: path)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    for name in ["ToeiIcon.png", "ToeiIcon@2x.png"] {
-        try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
-    }
-    try FileManager.default.copyItem(
-        at: master.appendingPathComponent("icon_128x128.png"),
-        to: dir.appendingPathComponent("ToeiIcon.png")
-    )
-    try FileManager.default.copyItem(
-        at: master.appendingPathComponent("icon_256x256.png"),
-        to: dir.appendingPathComponent("ToeiIcon@2x.png")
-    )
-    let json = """
-    {
-      "images" : [
-        { "filename" : "ToeiIcon.png", "idiom" : "universal", "scale" : "1x" },
-        { "filename" : "ToeiIcon@2x.png", "idiom" : "universal", "scale" : "2x" }
-      ],
-      "info" : { "author" : "xcode", "version" : 1 },
-      "properties" : { "template-rendering-intent" : "original" }
-    }
-    """
-    try json.write(to: dir.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
-    print("wrote \(path)")
-}
-
-// macOS 26 のウィジェットギャラリーは iOS 由来で、CFBundleIcons / AppIcon60x60 を探す。
-// 無いと Xcode の格子プレースホルダになる（ThreadMaster 等の iOS アプリと同じ経路）。
+// ファイル名参照 (CFBundleIconFiles) 用。Assets.car に無いときウィジェット一覧がこれを探す。
 let iosIconDirs = [
     URL(fileURLWithPath: "App/Resources"),
     URL(fileURLWithPath: "WidgetExtension/Resources"),
 ]
-let iosIcons: [(name: String, pixels: Int)] = [
-    ("AppIcon60x60@2x.png", 120),
-    ("AppIcon60x60@3x.png", 180),
-    ("AppIcon76x76@2x.png", 152),
-    ("AppIcon76x76@2x~ipad.png", 152),
-]
 for dir in iosIconDirs {
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    for item in iosIcons {
+    for item in resourceIOSSizes {
         let url = dir.appendingPathComponent(item.name)
         try render(pixels: item.pixels).write(to: url)
         print("wrote \(url.path) (\(item.pixels)px)")
     }
 }
-
-
-

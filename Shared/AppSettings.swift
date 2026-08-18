@@ -2,8 +2,8 @@ import Foundation
 import Security
 
 extension Notification.Name {
-    static let toeiPauseStateChanged = Notification.Name("jp.shigeya.SubwayWidget.pauseStateChanged")
-    static let toeiManualRefreshRequested = Notification.Name("jp.shigeya.SubwayWidget.manualRefreshRequested")
+    static let pauseStateChanged = Notification.Name("jp.shigeya.SubwayWidget.pauseStateChanged")
+    static let manualRefreshRequested = Notification.Name("jp.shigeya.SubwayWidget.manualRefreshRequested")
 }
 
 enum AppSettings {
@@ -17,10 +17,10 @@ enum AppSettings {
         if isValidGroupID(plist) { return plist }
         if let team = signingTeamID() {
             let resolved = "\(team).\(groupSuffix)"
-            toeiLogger.error("Info.plist の AppGroupID が不正（\(plist, privacy: .public)）のため署名から組み立てます: \(resolved, privacy: .public)")
+            subwayLogger.error("Info.plist の AppGroupID が不正（\(plist, privacy: .public)）のため署名から組み立てます: \(resolved, privacy: .public)")
             return resolved
         }
-        toeiLogger.error("App Group を利用できません（AppGroupID=\(plist, privacy: .public)）")
+        subwayLogger.error("App Group を利用できません（AppGroupID=\(plist, privacy: .public)）")
         return plist
     }()
 
@@ -85,7 +85,7 @@ enum AppSettings {
 
     static func notifyPauseStateChanged() {
         DistributedNotificationCenter.default().postNotificationName(
-            .toeiPauseStateChanged,
+            .pauseStateChanged,
             object: nil,
             userInfo: nil,
             deliverImmediately: true
@@ -94,7 +94,7 @@ enum AppSettings {
 
     static func notifyManualRefreshRequested() {
         DistributedNotificationCenter.default().postNotificationName(
-            .toeiManualRefreshRequested,
+            .manualRefreshRequested,
             object: nil,
             userInfo: nil,
             deliverImmediately: true

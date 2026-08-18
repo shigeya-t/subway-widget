@@ -1,5 +1,6 @@
 import Foundation
 
+/// タイムゾーンと Yahoo!路線情報のホスト。型名の Toei は当初都営専用だった名残。
 enum ToeiConfig {
     static let timeZone = TimeZone(identifier: "Asia/Tokyo")!
     static let yahooHost = "transit.yahoo.co.jp"
