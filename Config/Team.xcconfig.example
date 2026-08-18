@@ -1,0 +1,2 @@
+// コピーして Team.xcconfig にするか、./scripts/sync-team.sh を実行する。
+DEVELOPMENT_TEAM =
