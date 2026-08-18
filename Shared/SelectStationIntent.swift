@@ -43,9 +43,44 @@ enum WidgetEntityMatch {
         return defaultStation(for: line)
     }
 
+    /// 事業者が変わっても `$line` はすぐには更新されないので、ここで合わせる。
+    static func resolvedLine(_ line: LineID?, operator railwayOperator: RailwayOperator?) -> LineID? {
+        if let railwayOperator {
+            if let line { return defaultLineIfNeeded(line, operator: railwayOperator) }
+            return defaultLine(for: railwayOperator)
+        }
+        return line
+    }
+
+    static func resolvedStation(_ stationID: String?, line: LineID?) -> Station? {
+        guard let line else { return nil }
+        let station = stationID.flatMap { ToeiCatalog.station(id: $0) }
+        return defaultStationIfNeeded(station, line: line)
+    }
+
     static func defaultDirection(for station: Station) -> SelectionKey? {
         guard let code = station.directions.first else { return nil }
         return SelectionKey(line: station.line, stationCode: station.code, direction: code)
+    }
+
+    /// `entities(for:)` 専用。`$line` がまだ無いときはカタログだけで ID を解決し、デフォルト路線へ付け替えない。
+    static func stationsMatchingIdentifiers(
+        _ identifiers: [String],
+        line: LineID?,
+        operator railwayOperator: RailwayOperator?
+    ) -> [Station] {
+        if let line {
+            let resolved = resolvedLine(line, operator: railwayOperator) ?? line
+            return identifiers.compactMap { station(id: $0, line: resolved) }
+        }
+        return identifiers.compactMap { ToeiCatalog.station(id: $0) }
+    }
+
+    /// 空配列を返すとウィジェット設定が古い選択のまま残るので、親が変わったらデフォルトを返す。
+    static func matchingOrDefault<T>(_ matched: [T], fallback: T?) -> [T] {
+        if !matched.isEmpty { return matched }
+        if let fallback { return [fallback] }
+        return []
     }
 }
 
@@ -115,13 +150,19 @@ struct LineQuery: EntityQuery {
     var selection
 
     func entities(for identifiers: [String]) async throws -> [LineEntity] {
-        identifiers.compactMap { id in
+        guard !identifiers.isEmpty else { return [] }
+        let matched: [LineEntity] = identifiers.compactMap { id in
             guard let line = LineID(rawValue: id) else { return nil }
             if let op = resolvedOperator(), line.railwayOperator != op {
                 return nil
             }
             return LineEntity(line)
         }
+        let op = resolvedOperator() ?? SelectionKey.default.line.railwayOperator
+        return WidgetEntityMatch.matchingOrDefault(
+            matched,
+            fallback: WidgetEntityMatch.defaultLine(for: op).map(LineEntity.init)
+        )
     }
 
     func suggestedEntities() async throws -> [LineEntity] {
@@ -162,30 +203,47 @@ struct StationEntity: AppEntity {
 }
 
 struct StationQuery: EntityQuery {
+    /// 路線の defaultResult は駅クエリまで伝播しないので、事業者にも直接依存する。
+    @IntentParameterDependency<SelectStationIntent>(\.$railwayOperator)
+    var operatorSelection
+
     @IntentParameterDependency<SelectStationIntent>(\.$line)
     var selection
 
     func entities(for identifiers: [String]) async throws -> [StationEntity] {
-        guard selection != nil else { return [] }
-        return identifiers.compactMap { id in
-            WidgetEntityMatch.station(id: id, line: resolvedLine()).map(StationEntity.init)
-        }
+        guard !identifiers.isEmpty else { return [] }
+        let pickedLine = selection.flatMap { LineID(rawValue: $0.line.id) }
+        let matched = WidgetEntityMatch.stationsMatchingIdentifiers(
+            identifiers,
+            line: pickedLine,
+            operator: resolvedOperator()
+        ).map(StationEntity.init)
+        guard pickedLine != nil else { return matched }
+        return WidgetEntityMatch.matchingOrDefault(matched, fallback: defaultStationEntity())
     }
 
     func suggestedEntities() async throws -> [StationEntity] {
-        let lineID = resolvedLine() ?? SelectionKey.default.line
-        return ToeiCatalog.stations(on: lineID).map(StationEntity.init)
+        ToeiCatalog.stations(on: resolvedLine() ?? SelectionKey.default.line).map(StationEntity.init)
     }
 
     func defaultResult() async -> StationEntity? {
-        let lineID = resolvedLine() ?? SelectionKey.default.line
-        return WidgetEntityMatch.defaultStation(for: lineID).map(StationEntity.init)
+        defaultStationEntity()
+    }
+
+    private func defaultStationEntity() -> StationEntity? {
+        WidgetEntityMatch.defaultStation(for: resolvedLine() ?? SelectionKey.default.line).map(StationEntity.init)
+    }
+
+    private func resolvedOperator() -> RailwayOperator? {
+        guard let operatorSelection else { return nil }
+        return RailwayOperator(rawValue: operatorSelection.railwayOperator.id)
     }
 
     private func resolvedLine() -> LineID? {
-        guard let selection else { return nil }
-        let entity = selection.line
-        return LineID(rawValue: entity.id)
+        WidgetEntityMatch.resolvedLine(
+            selection.flatMap { LineID(rawValue: $0.line.id) },
+            operator: resolvedOperator()
+        )
     }
 }
 
@@ -212,7 +270,10 @@ struct DirectionEntity: AppEntity {
 }
 
 struct DirectionQuery: EntityQuery {
-    /// 路線と駅を別々に見る。両方必須にすると、路線変更直後は駅が空で方面の defaultResult が呼べない。
+    /// 1段ずつ依存させる。まとめて必須にすると、上流が空のとき defaultResult が呼べない。
+    @IntentParameterDependency<SelectStationIntent>(\.$railwayOperator)
+    var operatorSelection
+
     @IntentParameterDependency<SelectStationIntent>(\.$line)
     var lineSelection
 
@@ -220,14 +281,16 @@ struct DirectionQuery: EntityQuery {
     var stationSelection
 
     func entities(for identifiers: [String]) async throws -> [DirectionEntity] {
+        guard !identifiers.isEmpty else { return [] }
         let station = resolvedStation()
-        return identifiers.compactMap { id in
+        let matched = identifiers.compactMap { id in
             WidgetEntityMatch.direction(
                 id: id,
                 line: station?.line ?? resolvedLine(),
                 stationID: station?.id
             ).flatMap { directionEntity(for: $0) }
         }
+        return WidgetEntityMatch.matchingOrDefault(matched, fallback: defaultDirectionEntity())
     }
 
     func suggestedEntities() async throws -> [DirectionEntity] {
@@ -238,33 +301,33 @@ struct DirectionQuery: EntityQuery {
     }
 
     func defaultResult() async -> DirectionEntity? {
+        defaultDirectionEntity()
+    }
+
+    private func defaultDirectionEntity() -> DirectionEntity? {
         guard let station = resolvedStation(),
               let key = WidgetEntityMatch.defaultDirection(for: station)
         else { return nil }
         return directionEntity(for: key)
     }
 
+    private func resolvedOperator() -> RailwayOperator? {
+        guard let operatorSelection else { return nil }
+        return RailwayOperator(rawValue: operatorSelection.railwayOperator.id)
+    }
+
     private func resolvedLine() -> LineID? {
-        if let lineSelection { return LineID(rawValue: lineSelection.line.id) }
-        if let stationSelection, let station = ToeiCatalog.station(id: stationSelection.station.id) {
-            return station.line
-        }
-        return nil
+        let fromLine = lineSelection.flatMap { LineID(rawValue: $0.line.id) }
+        let fromStation = stationSelection.flatMap { ToeiCatalog.station(id: $0.station.id)?.line }
+        return WidgetEntityMatch.resolvedLine(fromLine ?? fromStation, operator: resolvedOperator())
     }
 
     /// 選ばれている駅が今の路線と一致すればそれを使い、そうでなければ路線のデフォルト駅にする。
     private func resolvedStation() -> Station? {
-        let line = resolvedLine()
-        if let stationSelection,
-           let station = WidgetEntityMatch.station(id: stationSelection.station.id, line: line)
-        {
-            return station
-        }
-        if let line { return WidgetEntityMatch.defaultStation(for: line) }
-        if let stationSelection {
-            return ToeiCatalog.station(id: stationSelection.station.id)
-        }
-        return WidgetEntityMatch.defaultStation(for: SelectionKey.default.line)
+        WidgetEntityMatch.resolvedStation(
+            stationSelection?.station.id,
+            line: resolvedLine()
+        ) ?? WidgetEntityMatch.defaultStation(for: SelectionKey.default.line)
     }
 
     private func directionEntity(for key: SelectionKey) -> DirectionEntity? {
@@ -312,28 +375,18 @@ struct SelectStationIntent: WidgetConfigurationIntent {
     }
 
     var resolvedKey: SelectionKey? {
-        if let direction, let key = ToeiCatalog.selection(from: direction.id),
-           WidgetEntityMatch.direction(id: direction.id, line: line.flatMap { LineID(rawValue: $0.id) }, stationID: station?.id) != nil
+        let op = railwayOperator.flatMap { RailwayOperator(rawValue: $0.id) }
+        let pickedLine = line.flatMap { LineID(rawValue: $0.id) }
+        let lineFromStation = station.flatMap { ToeiCatalog.station(id: $0.id)?.line }
+        let lineID = WidgetEntityMatch.resolvedLine(pickedLine ?? lineFromStation, operator: op)
+        let resolvedStation = WidgetEntityMatch.resolvedStation(station?.id, line: lineID)
+
+        if let direction,
+           let key = WidgetEntityMatch.direction(id: direction.id, line: lineID, stationID: resolvedStation?.id)
         {
             return key
         }
-        if let station, let resolved = ToeiCatalog.station(id: station.id),
-           line.flatMap({ LineID(rawValue: $0.id) }).map({ $0 == resolved.line }) ?? true,
-           let code = resolved.directions.first
-        {
-            return SelectionKey(line: resolved.line, stationCode: resolved.code, direction: code)
-        }
-        if let line, let lineID = LineID(rawValue: line.id),
-           let resolved = WidgetEntityMatch.defaultStation(for: lineID),
-           let key = WidgetEntityMatch.defaultDirection(for: resolved)
-        {
-            return key
-        }
-        if let railwayOperator, let op = RailwayOperator(rawValue: railwayOperator.id),
-           let lineID = WidgetEntityMatch.defaultLine(for: op),
-           let resolved = WidgetEntityMatch.defaultStation(for: lineID),
-           let key = WidgetEntityMatch.defaultDirection(for: resolved)
-        {
+        if let resolvedStation, let key = WidgetEntityMatch.defaultDirection(for: resolvedStation) {
             return key
         }
         return nil

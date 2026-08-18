@@ -196,10 +196,12 @@ final class CatalogAndURLTests: XCTestCase {
         XCTAssertEqual(ToeiCatalog.stations(on: .oedo).count, 38)
     }
 
+    func testResolvedKeyIsNilWhenIntentHasNoOperator() {
+        XCTAssertNil(SelectStationIntent().resolvedKey)
+    }
+
     func testResolvedKeyFallsBackWhenDirectionMissing() {
         let intent = SelectStationIntent()
-        XCTAssertNil(intent.resolvedKey)
-
         let station = ToeiCatalog.station(line: .oedo, code: "E17")!
         intent.station = StationEntity(station)
         XCTAssertEqual(intent.resolvedKey?.stationCode, "E17")
@@ -222,6 +224,51 @@ final class CatalogAndURLTests: XCTestCase {
         )
         XCTAssertNil(WidgetEntityMatch.station(id: "oedo:E17", line: .marunouchi))
         XCTAssertEqual(WidgetEntityMatch.station(id: tokyo.id, line: .marunouchi)?.name, "東京")
+    }
+
+    func testResolvedKeyIgnoresStaleSelectionAfterOperatorChange() {
+        let intent = SelectStationIntent()
+        let tokyo = ToeiCatalog.station(line: .marunouchi, code: "M17")!
+        intent.railwayOperator = OperatorEntity(.toei)
+        intent.line = LineEntity(.marunouchi)
+        intent.station = StationEntity(tokyo)
+        intent.direction = DirectionEntity(
+            key: SelectionKey(line: .marunouchi, stationCode: "M17", direction: "E"),
+            name: tokyo.directionLabel("E")
+        )
+        XCTAssertEqual(intent.resolvedKey?.line, .asakusa)
+        XCTAssertEqual(intent.resolvedKey?.stationCode, "A01")
+        XCTAssertEqual(intent.resolvedKey?.direction, "N")
+    }
+
+    func testResolvedKeyIgnoresStaleToeiSelectionAfterSwitchingToMetro() {
+        let intent = SelectStationIntent()
+        let nishimagome = ToeiCatalog.station(line: .asakusa, code: "A01")!
+        intent.railwayOperator = OperatorEntity(.metro)
+        intent.line = LineEntity(.asakusa)
+        intent.station = StationEntity(nishimagome)
+        intent.direction = DirectionEntity(
+            key: SelectionKey(line: .asakusa, stationCode: "A01", direction: "N"),
+            name: nishimagome.directionLabel("N")
+        )
+        XCTAssertEqual(intent.resolvedKey, SelectionKey.default)
+        XCTAssertEqual(intent.resolvedKey?.stationCode, "M17")
+        XCTAssertEqual(intent.resolvedKey?.direction, "E")
+    }
+
+    func testResolvedKeyUsesDefaultStationWhenLineChangesWithinOperator() {
+        let intent = SelectStationIntent()
+        let tokyo = ToeiCatalog.station(line: .marunouchi, code: "M17")!
+        intent.railwayOperator = OperatorEntity(.metro)
+        intent.line = LineEntity(.ginza)
+        intent.station = StationEntity(tokyo)
+        intent.direction = DirectionEntity(
+            key: SelectionKey(line: .marunouchi, stationCode: "M17", direction: "E"),
+            name: tokyo.directionLabel("E")
+        )
+        XCTAssertEqual(intent.resolvedKey?.line, .ginza)
+        XCTAssertEqual(intent.resolvedKey?.stationCode, "G01")
+        XCTAssertEqual(intent.resolvedKey?.direction, "N")
     }
 
     func testResolvedKeyIgnoresStaleDirectionAfterStationChange() {
@@ -249,6 +296,9 @@ final class CatalogAndURLTests: XCTestCase {
         XCTAssertEqual(toei.resolvedKey?.stationCode, "A01")
         XCTAssertEqual(OperatorEntity(.toei).name, "都営地下鉄")
         XCTAssertEqual(OperatorEntity(.metro).id, "metro")
+    }
+
+    func testDefaultLineAndStationFollowOperatorAndLine() {
         XCTAssertEqual(WidgetEntityMatch.defaultLine(for: .metro), .marunouchi)
         XCTAssertEqual(WidgetEntityMatch.defaultLine(for: .toei), .asakusa)
         XCTAssertEqual(WidgetEntityMatch.defaultLineIfNeeded(.oedo, operator: .metro), .marunouchi)
@@ -257,6 +307,51 @@ final class CatalogAndURLTests: XCTestCase {
         XCTAssertEqual(WidgetEntityMatch.defaultStationIfNeeded(ogikubo, line: .marunouchi)?.code, "M01")
         XCTAssertEqual(WidgetEntityMatch.defaultStationIfNeeded(ogikubo, line: .ginza)?.code, "G01")
         XCTAssertEqual(WidgetEntityMatch.defaultStationIfNeeded(nil, line: .marunouchi)?.code, "M17")
+    }
+
+    func testResolvedLineAndStationIgnoreStaleParent() {
+        XCTAssertEqual(WidgetEntityMatch.resolvedLine(.marunouchi, operator: .toei), .asakusa)
+        XCTAssertEqual(WidgetEntityMatch.resolvedLine(.oedo, operator: .toei), .oedo)
+        XCTAssertEqual(WidgetEntityMatch.resolvedLine(nil, operator: .toei), .asakusa)
+        XCTAssertEqual(WidgetEntityMatch.resolvedLine(.marunouchi, operator: nil), .marunouchi)
+        XCTAssertEqual(WidgetEntityMatch.resolvedStation("marunouchi:M17", line: .asakusa)?.code, "A01")
+        XCTAssertEqual(WidgetEntityMatch.resolvedStation("marunouchi:M17", line: .marunouchi)?.code, "M17")
+    }
+
+    func testStationsMatchingIdentifiersDoNotRemapWhenLineIsMissing() {
+        let ginza = WidgetEntityMatch.stationsMatchingIdentifiers(
+            ["ginza:G09"],
+            line: nil,
+            operator: .metro
+        )
+        XCTAssertEqual(ginza.map(\.code), ["G09"])
+        XCTAssertEqual(ginza.first?.name, "銀座")
+
+        let stale = WidgetEntityMatch.stationsMatchingIdentifiers(
+            ["marunouchi:M17"],
+            line: .marunouchi,
+            operator: .toei
+        )
+        XCTAssertTrue(stale.isEmpty)
+        XCTAssertEqual(
+            WidgetEntityMatch.stationsMatchingIdentifiers(
+                ["ginza:G09"],
+                line: .ginza,
+                operator: .metro
+            ).map(\.code),
+            ["G09"]
+        )
+    }
+
+    func testMatchingOrDefaultKeepsMatchOtherwiseUsesFallback() {
+        XCTAssertEqual(
+            WidgetEntityMatch.matchingOrDefault([String](), fallback: "浅草線"),
+            ["浅草線"]
+        )
+        XCTAssertEqual(
+            WidgetEntityMatch.matchingOrDefault(["丸ノ内線"], fallback: "浅草線"),
+            ["丸ノ内線"]
+        )
     }
 
     func testDefaultDirectionExistsForEveryLine() {

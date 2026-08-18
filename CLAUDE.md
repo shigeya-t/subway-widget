@@ -62,12 +62,14 @@ App が App Group に書いたものを読むだけ。
 
 # ウィジェット設定（App Intents）
 
-`EntityQuery.entities(for:)` は名前を空文字で返さない。引けない ID は落とす。
+`EntityQuery.entities(for:)` は名前を空文字で返さない。親（事業者・路線・駅）と合わない ID は
+落とさず、その親のデフォルトエンティティを返す。空配列を返すと設定画面が古い選択のまま残る。
 
 従属パラメータは **1段ずつ** 依存させる。方面クエリで `(\.$line, \.$station)` のように両方必須にすると、
 路線変更直後は駅が空で `defaultResult` が呼べず、方面が空欄のままになる。
-路線と駅は別々の `@IntentParameterDependency` にし、駅がまだ新しい路線と一致しないときは
-その路線のデフォルト駅の先頭方面を返す。
+路線の `defaultResult` は駅・方面クエリまで伝播しないので、駅クエリは `$railwayOperator` と `$line` を、
+方面クエリは `$railwayOperator` と `$line` と `$station` を、それぞれ別の `@IntentParameterDependency` にする。
+駅がまだ新しい路線と一致しないときは、その路線のデフォルト駅の先頭方面を返す。
 
 デフォルト駅は丸ノ内線 東京（`SelectionKey.default`）。`WidgetEntityMatch.defaultStation(for:)` /
 `defaultLine(for:)` をウィジェット設定とメニューバー（`ArrivalModel`）で共有すること。
