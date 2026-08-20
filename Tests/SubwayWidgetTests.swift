@@ -55,6 +55,28 @@ final class ToeiPageParserTests: XCTestCase {
         XCTAssertFalse(statuses[.asakusa]?.text.isEmpty ?? true)
     }
 
+    func testNormalStatusShowsClockWhenEntryDateIsStaleNotTriangle() {
+        let observed = Date(timeIntervalSince1970: 1_000_000)
+        let statuses = ToeiPageParser.parseStatuses(Self.fixture("yahoo_diainfo_normal"), observedAt: observed)
+        let status = statuses[.oedo]
+        XCTAssertEqual(status?.text, "平常運転")
+        XCTAssertNil(status?.warningSymbolName(at: observed))
+        XCTAssertNil(status?.warningSymbolName(at: observed.addingTimeInterval(10 * 60 - 1)))
+        XCTAssertEqual(status?.warningSymbolName(at: observed.addingTimeInterval(10 * 60)), "clock")
+        XCTAssertNotEqual(status?.warningSymbolName(at: observed.addingTimeInterval(11 * 60)), "exclamationmark.triangle")
+    }
+
+    func testDelayedAndUnknownStatusShowWarningRegardlessOfAge() {
+        let observed = Date(timeIntervalSince1970: 1_000_000)
+        let delayed = ToeiPageParser.parseStatuses(Self.fixture("yahoo_diainfo_delayed"), observedAt: observed)
+        let later = observed.addingTimeInterval(30 * 60)
+        XCTAssertEqual(delayed[.asakusa]?.warningSymbolName(at: later), "exclamationmark.triangle")
+        XCTAssertEqual(delayed[.oedo]?.warningSymbolName(at: later), "clock")
+
+        let unknown = LineStatus(line: .oedo, kind: .unknown, text: "運行状況を取得できません", observedAt: observed)
+        XCTAssertEqual(unknown.warningSymbolName(at: later), "exclamationmark.triangle")
+    }
+
     private static func fixture(_ name: String) -> String {
         let url = Bundle(for: ToeiPageParserTests.self).url(forResource: name, withExtension: "html")
         XCTAssertNotNil(url, "missing fixture \(name).html")
@@ -467,6 +489,20 @@ final class UpcomingTrainTests: XCTestCase {
         XCTAssertTrue(dates.contains(first.addingTimeInterval(1)))
         XCTAssertGreaterThan(dates.count, 1)
         XCTAssertEqual(TrainSnapshot.remainingMinutes(until: first, now: dates[1]), 2)
+    }
+
+    func testWidgetTimelineDatesIncludeStaleClockFlip() {
+        let now = Self.date(year: 2026, month: 8, day: 17, hour: 22, minute: 0)
+        let staleAt = now.addingTimeInterval(8 * 60)
+        let departure = now.addingTimeInterval(20 * 60)
+        let dates = TrainSnapshot.widgetTimelineDates(
+            now: now,
+            departures: [departure],
+            horizon: 15 * 60,
+            extra: [staleAt]
+        )
+        XCTAssertTrue(dates.contains(staleAt))
+        XCTAssertFalse(dates.contains(now.addingTimeInterval(20 * 60)))
     }
 
     func testRemainingLabelUsesHoursWhenOverOneHour() {
