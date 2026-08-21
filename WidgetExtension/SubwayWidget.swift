@@ -43,7 +43,8 @@ struct Provider: AppIntentTimelineProvider {
             return Timeline(entries: [first], policy: .after(reloadDate(for: first, now: now)))
         }
 
-        let dates = TrainSnapshot.widgetTimelineDates(now: now, departures: departures)
+        let extra = staleClockDates(status: first.status)
+        let dates = TrainSnapshot.widgetTimelineDates(now: now, departures: departures, extra: extra)
         let entries = dates.map { buildEntry(configuration: configuration, now: $0) }
         subwayLogger.debug("timeline entries=\(entries.count, privacy: .public)")
         let lastDate = entries.last?.date ?? now
@@ -59,6 +60,12 @@ struct Provider: AppIntentTimelineProvider {
             return now.addingTimeInterval(60)
         }
         return now.addingTimeInterval(5 * 60)
+    }
+
+    /// 平常運転が古くなる瞬間に entry を差し、時計アイコンへ切り替えられるようにする。
+    private func staleClockDates(status: LineStatus?) -> [Date] {
+        guard let status, status.kind == .normal else { return [] }
+        return [status.observedAt.addingTimeInterval(LineStatus.staleInterval)]
     }
 
     private func requestScheduleIfNeeded(_ entry: TrainEntry) {
@@ -304,8 +311,8 @@ struct SubwayWidgetEntryView: View {
                 if entry.isPaused {
                     Image(systemName: "pause.circle")
                         .foregroundStyle(.orange)
-                } else if status.isStale {
-                    Image(systemName: "exclamationmark.triangle")
+                } else if let symbol = status.warningSymbolName(at: entry.date) {
+                    Image(systemName: symbol)
                         .foregroundStyle(.orange)
                 }
                 Text(status.text)

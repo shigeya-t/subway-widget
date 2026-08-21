@@ -77,13 +77,27 @@ struct LineStatus: Codable, Sendable, Equatable {
         case unknown
     }
 
+    /// 取得からこの時間以上経った平常運転は、遅延の三角ではなく時計で「古い」と出す。
+    static let staleInterval: TimeInterval = 10 * 60
+
     var line: LineID
     var kind: Kind
     var text: String
     var observedAt: Date
 
-    var isStale: Bool {
-        Date().timeIntervalSince(observedAt) > 10 * 60
+    func isStale(at now: Date) -> Bool {
+        now.timeIntervalSince(observedAt) >= Self.staleInterval
+    }
+
+    /// 運行状況の横に出す SF Symbol。遅延・取得失敗は三角。平常運転の古いキャッシュは時計。
+    /// `now` は Timeline の `entry.date` を渡す。View で `Date()` を見ると、先読みした entry が誤検知する。
+    func warningSymbolName(at now: Date) -> String? {
+        switch kind {
+        case .delayed, .unknown:
+            return "exclamationmark.triangle"
+        case .normal:
+            return isStale(at: now) ? "clock" : nil
+        }
     }
 }
 
@@ -109,9 +123,12 @@ enum TrainSnapshot {
 
     /// ウィジェットが分数と次発の切り替わりを、拡張を起こさずに表示できる日時。
     /// macOS では Timeline を1件だけ返すと `.after` が来ず、表示が止まることがある。
-    static func widgetTimelineDates(now: Date, departures: [Date], horizon: TimeInterval = 30 * 60) -> [Date] {
+    static func widgetTimelineDates(now: Date, departures: [Date], horizon: TimeInterval = 30 * 60, extra: [Date] = []) -> [Date] {
         let end = now.addingTimeInterval(horizon)
         var dates: [Date] = [now]
+        for date in extra where date > now && date <= end {
+            dates.append(date)
+        }
         for departure in departures {
             guard departure > now else { continue }
             var minutes = remainingMinutes(until: departure, now: now)
