@@ -4,6 +4,7 @@ import Security
 extension Notification.Name {
     static let pauseStateChanged = Notification.Name("jp.shigeya.SubwayWidget.pauseStateChanged")
     static let manualRefreshRequested = Notification.Name("jp.shigeya.SubwayWidget.manualRefreshRequested")
+    static let openStatusPageRequested = Notification.Name("jp.shigeya.SubwayWidget.openStatusPageRequested")
 }
 
 enum AppSettings {
@@ -73,6 +74,7 @@ enum AppSettings {
         static func status(_ line: String) -> String { "status.\(line)" }
         static func directionLabel(_ id: String) -> String { "directionLabel.\(id)" }
         static let neededSelections = "neededSelections"
+        static let pendingStatusPageLine = "pendingStatusPageLine"
     }
 
     static var isPaused: Bool {
@@ -99,6 +101,27 @@ enum AppSettings {
             userInfo: nil,
             deliverImmediately: true
         )
+    }
+
+    /// サンドボックスでは distributed notification の object / userInfo に任意の値を載せられない。
+    static func notifyOpenStatusPage(line: LineID) {
+        defaults.set(line.rawValue, forKey: Keys.pendingStatusPageLine)
+        defaults.synchronize()
+        DistributedNotificationCenter.default().postNotificationName(
+            .openStatusPageRequested,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+    }
+
+    static func takePendingStatusPageLine() -> LineID? {
+        guard let raw = defaults.string(forKey: Keys.pendingStatusPageLine),
+              let line = LineID(rawValue: raw)
+        else { return nil }
+        defaults.removeObject(forKey: Keys.pendingStatusPageLine)
+        defaults.synchronize()
+        return line
     }
 
     static var selectedKey: SelectionKey? {
