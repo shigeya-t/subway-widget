@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import AppIntents
+import AppKit
 
 @main
 struct SubwayWidgetApp: App {
@@ -90,6 +91,11 @@ final class ArrivalModel: ObservableObject {
         }
         observePauseChangesFromWidget()
         observeManualRefreshRequestsFromWidget()
+        observeOpenStatusPageRequestsFromWidget()
+        if let pending = AppSettings.takePendingStatusPageLine() {
+            openStatusPage(lineID: pending.rawValue)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
         if !isPaused {
             startTimer()
             Task { await refresh(force: true) }
@@ -136,6 +142,31 @@ final class ArrivalModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in await self?.refresh(force: true) }
+        }
+    }
+
+    private func observeOpenStatusPageRequestsFromWidget() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: .openStatusPageRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.openStatusPage(lineID: nil) }
+        }
+    }
+
+    private func openStatusPage(lineID: String?) {
+        let line = lineID.flatMap(LineID.init(rawValue:))
+            ?? AppSettings.takePendingStatusPageLine()
+            ?? selectedLine
+        let url = ToeiConfig.statusURL(for: line)
+        subwayLogger.debug("open status page \(url.absoluteString, privacy: .public)")
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open(url, configuration: config) { _, error in
+            if let error {
+                subwayLogger.error("status page open failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

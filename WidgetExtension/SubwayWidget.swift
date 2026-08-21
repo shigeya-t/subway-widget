@@ -113,7 +113,7 @@ struct SubwayWidgetEntryView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isSmall ? (smallCrowded ? 4 : 5) : 8) {
+        let stack = VStack(alignment: .leading, spacing: isSmall ? (smallCrowded ? 4 : 5) : 8) {
             header
             nextTrain
             if !isSmall {
@@ -125,6 +125,23 @@ struct SubwayWidgetEntryView: View {
         .padding(.horizontal, isSmall ? 10 : 12)
         .padding(.vertical, smallCrowded ? 8 : 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+
+        ZStack(alignment: .topTrailing) {
+            if let line = entry.line {
+                Button(intent: OpenLineStatusIntent(line: line)) {
+                    stack
+                }
+                .buttonStyle(.plain)
+            } else {
+                stack
+            }
+            if entry.key != nil {
+                headerButtons
+                    .padding(.top, smallCrowded ? 8 : 12)
+                    .padding(.trailing, isSmall ? 10 : 12)
+            }
+        }
     }
 
     private var header: some View {
@@ -143,6 +160,8 @@ struct SubwayWidgetEntryView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     if entry.key != nil {
                         headerButtons
+                            .hidden()
+                            .allowsHitTesting(false)
                     }
                 }
                 Text(entry.stationName ?? "駅を選択")

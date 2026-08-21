@@ -42,3 +42,32 @@ struct TogglePauseIntent: AppIntent {
         return .result()
     }
 }
+
+/// macOS のインタラクティブ・ウィジェットでは `Link` / `widgetURL` がボタンに負ける。
+/// 拡張から URL は開けないので、メニューバー常駐へ通知してブラウザで開く。
+struct OpenLineStatusIntent: AppIntent {
+    static var title: LocalizedStringResource { "運行情報を見る" }
+    static var description: IntentDescription {
+        IntentDescription("Yahoo!路線情報の運行情報ページを開きます。")
+    }
+    static var openAppWhenRun: Bool { false }
+    static var isDiscoverable: Bool { false }
+
+    @Parameter(title: "路線")
+    var lineID: String
+
+    init() {
+        lineID = SelectionKey.default.line.rawValue
+    }
+
+    init(line: LineID) {
+        lineID = line.rawValue
+    }
+
+    func perform() async throws -> some IntentResult {
+        guard let line = LineID(rawValue: lineID) else { return .result() }
+        subwayLogger.debug("open status requested line=\(line.rawValue, privacy: .public)")
+        AppSettings.notifyOpenStatusPage(line: line)
+        return .result()
+    }
+}

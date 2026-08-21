@@ -82,6 +82,18 @@ final class CatalogAndURLTests: XCTestCase {
         XCTAssertEqual(ToeiCatalog.station(line: .oedo, code: "E28")?.directions, ["A", "B", "C"])
     }
 
+    func testLineStatusURL() {
+        XCTAssertEqual(
+            ToeiConfig.statusURL(for: .asakusa).absoluteString,
+            "https://transit.yahoo.co.jp/diainfo/128/0"
+        )
+        XCTAssertEqual(
+            ToeiConfig.statusURL(for: .fukutoshin).absoluteString,
+            "https://transit.yahoo.co.jp/diainfo/540/0"
+        )
+        XCTAssertEqual(OpenLineStatusIntent(line: .fukutoshin).lineID, LineID.fukutoshin.rawValue)
+    }
+
     func testTimetableURL() {
         let url = ToeiAPI.timetableURL(line: .oedo, stationCode: "E17", direction: "B", kind: .weekday)
         XCTAssertEqual(url?.absoluteString, "https://transit.yahoo.co.jp/timetable/29339/7211?kind=1")
