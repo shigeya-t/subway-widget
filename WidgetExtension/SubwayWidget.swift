@@ -140,6 +140,7 @@ struct SubwayWidgetEntryView: View {
                     stack
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 stack
             }

@@ -92,10 +92,7 @@ final class ArrivalModel: ObservableObject {
         observePauseChangesFromWidget()
         observeManualRefreshRequestsFromWidget()
         observeOpenStatusPageRequestsFromWidget()
-        if let pending = AppSettings.takePendingStatusPageLine() {
-            openStatusPage(lineID: pending.rawValue)
-        }
-        WidgetCenter.shared.reloadAllTimelines()
+        openPendingStatusPage()
         if !isPaused {
             startTimer()
             Task { await refresh(force: true) }
@@ -151,14 +148,13 @@ final class ArrivalModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.openStatusPage(lineID: nil) }
+            Task { @MainActor in self?.openPendingStatusPage() }
         }
     }
 
-    private func openStatusPage(lineID: String?) {
-        let line = lineID.flatMap(LineID.init(rawValue:))
-            ?? AppSettings.takePendingStatusPageLine()
-            ?? selectedLine
+    /// mailbox が空なら何もしない。メニューバーの選択路線に落とすと、ウィジェットと違うページが開く。
+    private func openPendingStatusPage() {
+        guard let line = AppSettings.takePendingStatusPageLine() else { return }
         let url = ToeiConfig.statusURL(for: line)
         subwayLogger.debug("open status page \(url.absoluteString, privacy: .public)")
         let config = NSWorkspace.OpenConfiguration()

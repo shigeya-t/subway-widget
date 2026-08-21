@@ -45,12 +45,13 @@ struct TogglePauseIntent: AppIntent {
 
 /// macOS のインタラクティブ・ウィジェットでは `Link` / `widgetURL` がボタンに負ける。
 /// 拡張から URL は開けないので、メニューバー常駐へ通知してブラウザで開く。
+/// 常駐が落ちていても起動してから開くため、一時停止・更新と違って `openAppWhenRun` は true。
 struct OpenLineStatusIntent: AppIntent {
     static var title: LocalizedStringResource { "運行情報を見る" }
     static var description: IntentDescription {
         IntentDescription("Yahoo!路線情報の運行情報ページを開きます。")
     }
-    static var openAppWhenRun: Bool { false }
+    static var openAppWhenRun: Bool { true }
     static var isDiscoverable: Bool { false }
 
     @Parameter(title: "路線")

@@ -114,6 +114,8 @@ final class CatalogAndURLTests: XCTestCase {
             "https://transit.yahoo.co.jp/diainfo/540/0"
         )
         XCTAssertEqual(OpenLineStatusIntent(line: .fukutoshin).lineID, LineID.fukutoshin.rawValue)
+        XCTAssertTrue(OpenLineStatusIntent.openAppWhenRun)
+        XCTAssertFalse(RefreshTrainIntent.openAppWhenRun)
     }
 
     func testTimetableURL() {
