@@ -154,8 +154,7 @@ final class ArrivalModel: ObservableObject {
 
     /// mailbox が空なら何もしない。メニューバーの選択路線に落とすと、ウィジェットと違うページが開く。
     private func openPendingStatusPage() {
-        guard let line = AppSettings.takePendingStatusPageLine() else { return }
-        let url = ToeiConfig.statusURL(for: line)
+        guard let url = AppSettings.takePendingStatusPageURL() else { return }
         subwayLogger.debug("open status page \(url.absoluteString, privacy: .public)")
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true

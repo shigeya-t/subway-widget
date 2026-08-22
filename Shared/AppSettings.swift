@@ -75,6 +75,7 @@ enum AppSettings {
         static func directionLabel(_ id: String) -> String { "directionLabel.\(id)" }
         static let neededSelections = "neededSelections"
         static let pendingStatusPageLine = "pendingStatusPageLine"
+        static let pendingStatusPageURL = "pendingStatusPageURL"
     }
 
     static var isPaused: Bool {
@@ -105,7 +106,11 @@ enum AppSettings {
 
     /// サンドボックスでは distributed notification の object / userInfo に任意の値を載せられない。
     static func notifyOpenStatusPage(line: LineID) {
-        defaults.set(line.rawValue, forKey: Keys.pendingStatusPageLine)
+        notifyOpenStatusPage(url: ToeiConfig.statusURL(for: line))
+    }
+
+    static func notifyOpenStatusPage(url: URL) {
+        defaults.set(url.absoluteString, forKey: Keys.pendingStatusPageURL)
         defaults.synchronize()
         DistributedNotificationCenter.default().postNotificationName(
             .openStatusPageRequested,
@@ -113,6 +118,16 @@ enum AppSettings {
             userInfo: nil,
             deliverImmediately: true
         )
+    }
+
+    static func takePendingStatusPageURL() -> URL? {
+        if let raw = defaults.string(forKey: Keys.pendingStatusPageURL), !raw.isEmpty {
+            defaults.removeObject(forKey: Keys.pendingStatusPageURL)
+            defaults.removeObject(forKey: Keys.pendingStatusPageLine)
+            defaults.synchronize()
+            return URL(string: raw).flatMap { ToeiConfig.isYahooStatusURL($0) ? $0 : nil }
+        }
+        return takePendingStatusPageLine().map { ToeiConfig.statusURL(for: $0) }
     }
 
     static func takePendingStatusPageLine() -> LineID? {

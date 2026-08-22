@@ -7,7 +7,15 @@ enum ToeiConfig {
     static let statusURL = URL(string: "https://transit.yahoo.co.jp/diainfo/area/4")!
 
     static func statusURL(for line: LineID) -> URL {
-        URL(string: "https://transit.yahoo.co.jp/diainfo/\(line.yahooDiaInfoID)/0")!
+        statusURL(yahooDiaInfoID: line.yahooDiaInfoID)
+    }
+
+    static func statusURL(yahooDiaInfoID: Int) -> URL {
+        URL(string: "https://\(yahooHost)/diainfo/\(yahooDiaInfoID)/0")!
+    }
+
+    static func isYahooStatusURL(_ url: URL) -> Bool {
+        url.host == yahooHost && url.path.hasPrefix("/diainfo/")
     }
 
     /// 終電帯を翌日の暦日へまたがせて扱う境界。0〜2時は前日ダイヤの続きとみなす。

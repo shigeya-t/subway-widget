@@ -110,10 +110,26 @@ final class CatalogAndURLTests: XCTestCase {
             "https://transit.yahoo.co.jp/diainfo/128/0"
         )
         XCTAssertEqual(
+            ToeiConfig.statusURL(for: .oedo).absoluteString,
+            "https://transit.yahoo.co.jp/diainfo/131/0"
+        )
+        XCTAssertEqual(
+            ToeiConfig.statusURL(for: .ginza).absoluteString,
+            "https://transit.yahoo.co.jp/diainfo/132/0"
+        )
+        XCTAssertEqual(
             ToeiConfig.statusURL(for: .fukutoshin).absoluteString,
             "https://transit.yahoo.co.jp/diainfo/540/0"
         )
-        XCTAssertEqual(OpenLineStatusIntent(line: .fukutoshin).lineID, LineID.fukutoshin.rawValue)
+        XCTAssertEqual(OpenLineStatusIntent(line: .oedo).lineID, LineID.oedo.rawValue)
+        XCTAssertEqual(OpenLineStatusIntent(line: .oedo).yahooDiaInfoID, 131)
+        XCTAssertEqual(OpenLineStatusIntent(line: .oedo).statusPageURL?.absoluteString, "https://transit.yahoo.co.jp/diainfo/131/0")
+        XCTAssertEqual(OpenLineStatusIntent(line: .ginza).yahooDiaInfoID, 132)
+        XCTAssertEqual(OpenLineStatusIntent(line: .fukutoshin).yahooDiaInfoID, 540)
+        XCTAssertEqual(OpenLineStatusIntent().yahooDiaInfoID, 0)
+        XCTAssertNil(OpenLineStatusIntent().statusPageURL)
+        XCTAssertTrue(ToeiConfig.isYahooStatusURL(ToeiConfig.statusURL(for: .oedo)))
+        XCTAssertFalse(ToeiConfig.isYahooStatusURL(URL(string: "https://example.com/diainfo/131/0")!))
         XCTAssertTrue(OpenLineStatusIntent.openAppWhenRun)
         XCTAssertFalse(RefreshTrainIntent.openAppWhenRun)
     }

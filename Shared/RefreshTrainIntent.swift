@@ -54,21 +54,39 @@ struct OpenLineStatusIntent: AppIntent {
     static var openAppWhenRun: Bool { true }
     static var isDiscoverable: Bool { false }
 
-    @Parameter(title: "路線")
+    static var parameterSummary: some ParameterSummary {
+        Summary("\(\.$lineID) \(\.$yahooDiaInfoID) の運行情報を見る")
+    }
+
+    /// `title: "路線"` だと `SelectStationIntent.line`（LineEntity）と同じ見出しになり、
+    /// ウィジェット設定の路線解決（メトロ先頭＝銀座線）に巻き込まれる。
+    @Parameter(title: "路線コード")
     var lineID: String
 
+    @Parameter(title: "Yahoo運行情報ID")
+    var yahooDiaInfoID: Int
+
     init() {
-        lineID = SelectionKey.default.line.rawValue
+        lineID = ""
+        yahooDiaInfoID = 0
     }
 
     init(line: LineID) {
         lineID = line.rawValue
+        yahooDiaInfoID = line.yahooDiaInfoID
     }
 
     func perform() async throws -> some IntentResult {
-        guard let line = LineID(rawValue: lineID) else { return .result() }
-        subwayLogger.debug("open status requested line=\(line.rawValue, privacy: .public)")
-        AppSettings.notifyOpenStatusPage(line: line)
+        guard let url = statusPageURL else { return .result() }
+        subwayLogger.debug("open status requested line=\(self.lineID, privacy: .public) id=\(self.yahooDiaInfoID, privacy: .public) url=\(url.absoluteString, privacy: .public)")
+        AppSettings.notifyOpenStatusPage(url: url)
         return .result()
+    }
+
+    var statusPageURL: URL? {
+        if yahooDiaInfoID > 0 {
+            return ToeiConfig.statusURL(yahooDiaInfoID: yahooDiaInfoID)
+        }
+        return LineID(rawValue: lineID).map { ToeiConfig.statusURL(for: $0) }
     }
 }
