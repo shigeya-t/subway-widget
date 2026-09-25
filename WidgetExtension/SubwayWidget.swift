@@ -291,17 +291,16 @@ struct SubwayWidgetEntryView: View {
 
     @ViewBuilder
     private var followingLine: some View {
-        let count = isSmall ? 2 : 3
-        let shown = Array(entry.following.prefix(count))
+        let shown = Array(entry.following.prefix(3))
         if !shown.isEmpty {
-            HStack(spacing: 8) {
-                ForEach(Array(shown.enumerated()), id: \.offset) { _, train in
-                    Text(train.departure.timeText)
-                        .font(Self.footnoteFont)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
+            // 小は幅が足りず HStack の3件目が切れる。1行にまとめて縮める。
+            Text(shown.map(\.departure.timeText).joined(separator: "  "))
+                .font(Self.footnoteFont)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(isSmall ? 0.7 : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
