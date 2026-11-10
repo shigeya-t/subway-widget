@@ -67,7 +67,7 @@ targets:
         # 実行ファイル名は ASCII のまま。一覧用の .app 名だけ日本語にする。
         # 濁点付き（「バ」など）は LaunchServices と PluginKit の正規化がずれて拡張が起動しない。
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "10"
+        CURRENT_PROJECT_VERSION: "11"
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         APP_GROUP_ID: $(DEVELOPMENT_TEAM).jp.shigeya.SubwayWidget
@@ -115,7 +115,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.shigeya.SubwayWidget.Widget
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "10"
+        CURRENT_PROJECT_VERSION: "11"
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         APP_GROUP_ID: $(DEVELOPMENT_TEAM).jp.shigeya.SubwayWidget

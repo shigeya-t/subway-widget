@@ -106,9 +106,19 @@ struct OperatorEntity: AppEntity {
     }
 }
 
-struct OperatorQuery: EntityQuery {
+/// EntityStringQuery にしている理由: 素の EntityQuery だと編集画面がポップアップメニューで選択肢を出し、
+/// macOS 27.2.1 では選んだ値が表示に反映されず、閉じたあとウィジェットの右クリックメニューも出なくなる。
+/// EntityStringQuery なら検索つきリストになり、どちらも起きない。
+struct OperatorQuery: EntityStringQuery {
     func entities(for identifiers: [String]) async throws -> [OperatorEntity] {
         identifiers.compactMap { RailwayOperator(rawValue: $0).map(OperatorEntity.init) }
+    }
+
+    func entities(matching string: String) async throws -> [OperatorEntity] {
+        let all = try await suggestedEntities()
+        let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     func suggestedEntities() async throws -> [OperatorEntity] {
@@ -145,7 +155,10 @@ struct LineEntity: AppEntity {
     }
 }
 
-struct LineQuery: EntityQuery {
+/// EntityStringQuery にしている理由: 素の EntityQuery だと編集画面がポップアップメニューで選択肢を出し、
+/// macOS 27.2.1 では選んだ値が表示に反映されず、閉じたあとウィジェットの右クリックメニューも出なくなる。
+/// EntityStringQuery なら検索つきリストになり、どちらも起きない。
+struct LineQuery: EntityStringQuery {
     @IntentParameterDependency<SelectStationIntent>(\.$railwayOperator)
     var selection
 
@@ -163,6 +176,13 @@ struct LineQuery: EntityQuery {
             matched,
             fallback: WidgetEntityMatch.defaultLine(for: op).map(LineEntity.init)
         )
+    }
+
+    func entities(matching string: String) async throws -> [LineEntity] {
+        let all = try await suggestedEntities()
+        let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     func suggestedEntities() async throws -> [LineEntity] {
@@ -202,7 +222,10 @@ struct StationEntity: AppEntity {
     }
 }
 
-struct StationQuery: EntityQuery {
+/// EntityStringQuery にしている理由: 素の EntityQuery だと編集画面がポップアップメニューで選択肢を出し、
+/// macOS 27.2.1 では選んだ値が表示に反映されず、閉じたあとウィジェットの右クリックメニューも出なくなる。
+/// EntityStringQuery なら検索つきリストになり、どちらも起きない。
+struct StationQuery: EntityStringQuery {
     /// 路線の defaultResult は駅クエリまで伝播しないので、事業者にも直接依存する。
     @IntentParameterDependency<SelectStationIntent>(\.$railwayOperator)
     var operatorSelection
@@ -220,6 +243,13 @@ struct StationQuery: EntityQuery {
         ).map(StationEntity.init)
         guard pickedLine != nil else { return matched }
         return WidgetEntityMatch.matchingOrDefault(matched, fallback: defaultStationEntity())
+    }
+
+    func entities(matching string: String) async throws -> [StationEntity] {
+        let all = try await suggestedEntities()
+        let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     func suggestedEntities() async throws -> [StationEntity] {
@@ -269,7 +299,10 @@ struct DirectionEntity: AppEntity {
     }
 }
 
-struct DirectionQuery: EntityQuery {
+/// EntityStringQuery にしている理由: 素の EntityQuery だと編集画面がポップアップメニューで選択肢を出し、
+/// macOS 27.2.1 では選んだ値が表示に反映されず、閉じたあとウィジェットの右クリックメニューも出なくなる。
+/// EntityStringQuery なら検索つきリストになり、どちらも起きない。
+struct DirectionQuery: EntityStringQuery {
     /// 1段ずつ依存させる。まとめて必須にすると、上流が空のとき defaultResult が呼べない。
     @IntentParameterDependency<SelectStationIntent>(\.$railwayOperator)
     var operatorSelection
@@ -291,6 +324,13 @@ struct DirectionQuery: EntityQuery {
             ).flatMap { directionEntity(for: $0) }
         }
         return WidgetEntityMatch.matchingOrDefault(matched, fallback: defaultDirectionEntity())
+    }
+
+    func entities(matching string: String) async throws -> [DirectionEntity] {
+        let all = try await suggestedEntities()
+        let query = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     func suggestedEntities() async throws -> [DirectionEntity] {
