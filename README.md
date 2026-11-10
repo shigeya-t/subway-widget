@@ -21,10 +21,15 @@
 
 デフォルトは丸ノ内線 **東京・池袋／茗荷谷方面** です。事業者は都営地下鉄と東京メトロに分かれています。
 
+## ダウンロード
+
+[Releases](https://github.com/shigeya-t/subway-widget/releases) の DMG（Developer ID 署名・公証済み）を開き、
+**東京地下鉄運行情報** を Applications へドラッグして起動してください。自分でビルドする場合は以下を参照してください。
+
 ## 必要なもの
 
 - macOS 14 以降
-- Xcode 15 以降
+- Xcode 15 以降（自分でビルドする場合のみ）
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)（`brew install xcodegen`）
 - インターネット接続（初回ビルド時に SwiftSoup を取得します）
 
