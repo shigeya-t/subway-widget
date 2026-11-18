@@ -106,6 +106,10 @@ App が App Group に書いたものを読むだけ。
 - `.app` 名に濁点付き日本語を入れない（拡張が起動せず空枠になる）
 - アプリ終了は bundle ID（`tell application id "jp.shigeya.SubwayWidget"`）
 - `??` は空文字を値ありと扱う
+- 同じ bundle ID の `.app`（DerivedData・`build/`・アーカイブ・DMG・`/Applications` と `~/Applications` の両方）が
+  Launch Services に複数登録されたままだと、再起動後に NotificationCenter が拡張を引けず
+  （`Widget extension could not be looked up`）ウィジェットが黒い枠になる。`deploy-local.sh` / `make-dmg.sh` は
+  終了時に配置済み以外の登録を外す。手で直すなら `unregister_stray_copies`（`_common.sh`）相当の後 `killall NotificationCenter`
 - `MenuBarExtra(.window)` は `NSApp.activate` しないと TextField が入力を受け取れない
 - 型名の `Toei*`（`ToeiCatalog` / `ToeiAPI` / `ToeiPageParser` など）は都営専用だった名残。中身はメトロも含む
 

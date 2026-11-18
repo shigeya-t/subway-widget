@@ -75,6 +75,47 @@ built_app_path() {
   [[ -n "$dir" && -d "$dir/$APP_NAME" ]] && echo "$dir/$APP_NAME"
 }
 
+# 配置済みとみなす場所（deploy-local.sh の既定と DMG からの手動インストール先）。
+installed_app_paths() {
+  local d
+  for d in "$HOME/Applications" /Applications; do
+    [[ -d "$d/$APP_NAME" ]] && echo "$d/$APP_NAME"
+  done
+  return 0
+}
+
+# Launch Services に登録された同じ bundle ID のアプリを列挙する。
+# DerivedData・build/・アーカイブ・DMG のマウント先など、もう存在しないパスも含む。
+registered_app_paths() {
+  "$LSREGISTER" -dump 2>/dev/null | awk -v id="$BUNDLE_ID" '
+    /^-+$/ { path = "" }
+    /^path:/ { sub(/^path:[[:space:]]*/, ""); sub(/ \(0x[0-9a-fA-F]+\)$/, ""); path = $0 }
+    /^identifier:/ && $2 == id && path != "" { print path; path = "" }
+  ' | sort -u
+  mdfind "kMDItemCFBundleIdentifier == \"$BUNDLE_ID\"" 2>/dev/null || true
+}
+
+# 引数のアプリ以外の登録を外し、引数のアプリを登録し直す。
+# 同じ bundle ID のコピー（Team ID 違いを含む）が複数登録されていると、再起動後に
+# NotificationCenter が「Widget extension could not be looked up」で拡張を引けず、
+# ウィジェットが黒い枠のまま止まる。
+unregister_stray_copies() {
+  local path keep skip
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    skip=0
+    for keep in "$@"; do
+      [[ "$path" == "$keep" ]] && skip=1
+    done
+    (( skip )) && continue
+    echo "    登録解除: $path"
+    "$LSREGISTER" -u "$path" >/dev/null 2>&1 || true
+  done < <(registered_app_paths | sort -u)
+  for keep in "$@"; do
+    "$LSREGISTER" -f -R -trusted "$keep"
+  done
+}
+
 # DerivedData は触らず、完成した .app をリポジトリの build/ にも置く。
 # CONFIGURATION_BUILD_DIR を上書きすると SwiftSoup の解決が壊れる。
 copy_app_to_repo_build() {

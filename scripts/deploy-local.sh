@@ -37,11 +37,11 @@ rm -rf "$TARGET"
 cp -R "$APP" "$DEST/"
 
 echo "==> Launch Services / アイコンキャッシュを更新"
-while IFS= read -r path; do
-  [[ -z "$path" || "$path" == "$TARGET" ]] && continue
-  "$LSREGISTER" -u "$path" 2>/dev/null || true
-done < <(mdfind 'kMDItemCFBundleIdentifier == "jp.shigeya.SubwayWidget"' 2>/dev/null || true)
-"$LSREGISTER" -f -R -trusted "$TARGET"
+while IFS= read -r other; do
+  [[ "$other" == "$TARGET" ]] && continue
+  echo "    warning: $other にも配置されています。片方を削除してください（2つあると再起動後にウィジェットが黒くなります）。" >&2
+done < <(installed_app_paths)
+unregister_stray_copies "$TARGET"
 APPEX="$TARGET/Contents/PlugIns/SubwayWidgetExtension.appex"
 if [[ -d "$APPEX" ]]; then
   pluginkit -r "$APPEX" >/dev/null 2>&1 || true
@@ -50,6 +50,8 @@ fi
 rm -rf "$HOME/Library/Caches/com.apple.iconservices" \
        "$HOME/Library/Caches/com.apple.IconServices" 2>/dev/null || true
 killall iconservicesagent >/dev/null 2>&1 || true
+# 拡張の引き当てに失敗したままの NotificationCenter を引き直させる
+killall NotificationCenter >/dev/null 2>&1 || true
 
 echo "==> 署名の確認"
 TEAM_LINE=$(codesign -dv "$TARGET/Contents/PlugIns/SubwayWidgetExtension.appex" 2>&1 \
