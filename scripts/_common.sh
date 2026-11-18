@@ -29,7 +29,12 @@ resolve_team_id() {
 
   if [[ $(wc -l <<<"$names") -gt 1 ]]; then
     echo "複数の証明書が見つかりました。DEVELOPMENT_TEAM=<Team ID> を指定してください:" >&2
-    echo "$names" >&2
+    # 名前の括弧内は証明書の ID で Team ID ではない。OU を並べて出す。
+    local n
+    while IFS= read -r n; do
+      echo "  Team ID $(security find-certificate -c "$n" -p | openssl x509 -noout -subject \
+        | sed -n 's/.*OU *= *\([A-Z0-9]*\).*/\1/p')  ← $n" >&2
+    done <<<"$names"
     exit 1
   fi
 
@@ -44,7 +49,10 @@ resolve_team_id() {
 
 write_team_xcconfig() {
   local team
-  team=$(resolve_team_id)
+  # `run_xcodebuild ... || die` のように || の左辺から呼ばれると set -e が効かないので、
+  # 明示的に止める（空の Team で Team.xcconfig を書くと App Group がずれる）。
+  team=$(resolve_team_id) || exit 1
+  [[ -n "$team" ]] || die "Team ID が空です。"
   DEVELOPMENT_TEAM_RESOLVED="$team"
   mkdir -p "$REPO_ROOT/Config"
   cat > "$REPO_ROOT/Config/Team.xcconfig" <<EOF
