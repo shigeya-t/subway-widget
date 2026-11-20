@@ -147,4 +147,11 @@ elif [[ "$SIGNING" == "developer-id" ]]; then
   echo "    公証していません。配布前に NOTARY_PROFILE=<profile> を付けて実行してください。"
 fi
 
+# アーカイブ・書き出し・DMG のマウントで同じ bundle ID のコピーが Launch Services に
+# 登録される。残すと再起動後に配置済みアプリのウィジェットが黒くなるので外す。
+echo "==> Launch Services から作業用コピーの登録を外す"
+INSTALLED=()
+while IFS= read -r p; do INSTALLED+=("$p"); done < <(installed_app_paths)
+unregister_stray_copies ${INSTALLED[@]+"${INSTALLED[@]}"}
+
 echo "==> 完了: $DMG ($VERSION build $BUILD)"
